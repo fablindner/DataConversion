@@ -47,7 +47,8 @@ def correct_timeshift(st):
         dt = round(dt, 3)
     
         # add estimated time shift to second trace
-        cor[1].stats.starttime += dt
+        if dt < 1:
+            cor[1].stats.starttime += dt
     
         # test if time series are perfectly aligned
         check = True
@@ -64,7 +65,8 @@ def correct_timeshift(st):
             # if not perfectly aligned, shift by one sample and try again
             else:
                 if count == 1:
-                    cor[1].stats.starttime -= 100*delta
+                    mshift = int((end - start) / delta) - 100
+                    cor[1].stats.starttime -= mshift*delta
                 elif count > 1:
                     cor[1].stats.starttime += delta
             count += 1
