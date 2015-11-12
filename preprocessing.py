@@ -45,7 +45,9 @@ def correct_timeshift(st):
         nnpts = xcorr.stats.npts
         dt = (np.argmax(xcorr.data) - nnpts/2.) * ndelta
         dt = round(dt, 3)
-    
+        with open('dts.txt', "a") as f:
+            f.write(str(dt) + "\n")
+            f.close()
         # add estimated time shift to second trace
         if dt < 1:
             cor[1].stats.starttime += dt
@@ -57,18 +59,22 @@ def correct_timeshift(st):
             start = cor[1].stats.starttime
             end = cor[0].stats.endtime
             test = cor.slice(start, end)
-            if test[0].stats.starttime == test[1].stats.starttime:
+            eq_st = False
+            if test[0].stats.starttime.timestamp == test[1].stats.starttime.timestamp:
                 eq_st = True
             eq_ar = np.array_equal(test[0].data, test[1].data)
             if eq_ar == True and eq_st == True:
                 check = False  
-            # if not perfectly aligned, shift by one sample and try again
+            # if not perfectly aligned, undo time shift obtained by xcorr and shift manually
             else:
                 if count == 1:
-                    mshift = int((end - start) / delta) - 100
+                    # undo time shift obtained from xcorr
+                    cor[1].stats.starttime -= dt
+                    mshift = int((end - start) / delta) + 1000
                     cor[1].stats.starttime -= mshift*delta
                 elif count > 1:
                     cor[1].stats.starttime += delta
+                cor[1].stats.starttime.microsecond = np.round(cor[1].stats.starttime.microsecond, 3)
             count += 1
         # if aligned, merge!
         cor.merge(method=1)
