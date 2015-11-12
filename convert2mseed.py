@@ -69,11 +69,15 @@ y = time.year
 m = time.month
 d = time.day
 h = time.hour
+delta = tcor_st[0].stats.delta
 
 print("write traces ...")
 t1_trim = UTCDateTime(y, m, d, h, 0)
-t2_trim = UTCDateTime(y, m, d, h + 1, 0)
-tcor_st.trim(t1_trim, t2_trim)
+if h < 23:
+    t2_trim = UTCDateTime(y, m, d, h + 1, 0)
+elif h == 23:
+    t2_trim = UTCDateTime(y, m, d + 1, 0, 0)
+tcor_st.trim(t1_trim, t2_trim - delta)
 for tr in tcor_st:
     tr.stats.network = "4D"
 
