@@ -1,7 +1,8 @@
 from obspy import read, Stream, UTCDateTime
 import numpy as np
+import numpy.ma as ma
 import sys
-from preprocessing import correct_timeshift
+from preprocessing import obtain_timeshifts, correct_timeshifts
 
 try:
     # filenames
@@ -11,7 +12,7 @@ try:
 except:
     print("USAGE: python seg2mseed.py <fileformat> <stationlist> <filelist>")
 
-# file directory
+# directory containing files to convert
 fd = "/scratch/flindner/G7Jul01/%s2/" % ff
 
 # read station and channel names
@@ -33,7 +34,7 @@ if ff == "SEG":
         st[tr].stats.station = stn[tr]
         st[tr].stats.channel = chn[tr]
 
-# read following files, assign station and channel, and add to first stream
+# read following files, assign station and channel (if format=SEG2), and add to first stream
 print("read files ...")
 for f in range(1, nfls):
     new = read(fd + fls[f])
@@ -46,21 +47,36 @@ for f in range(1, nfls):
 st.sort(keys=["station", "channel"])
 print("... done!")
 
-print("merge files ...")
 # empty stream for time corrected streams
 tcor_st = Stream()
 # unique station-channel pair
 stations = list(np.unique(stn))
 channels = list(np.unique(chn))
+# reverse ordering
 channels = channels[::-1]
 # select traces for one station-channel pair, shift in time, merge and add to container
+run = 0
+print("calculate time shifts and merge files ...")
 for station in stations:
     for channel in channels:
-        print("... ", station, channel, " ...")
         stream = st.select(station=station, channel=channel)    
         stream.sort(keys=["starttime"])
-        cor_stream = correct_timeshift(stream)
-        tcor_st += cor_stream
+        # test continuity of stream
+        test = stream.copy()
+        test.merge(method=1)
+        if not ma.is_masked(test[0].data):
+            if run == 0:
+                # copy stream
+                dtst = stream.copy()
+                # calculate time shifts
+                dts, tp = obtain_timeshifts(dtst)
+            print("... ", station, channel, " ...")
+            # correct for time shifts and add merged trace to container
+            cor_stream = correct_timeshifts(stream, dts, tp)
+            tcor_st += cor_stream
+            run += 1
+        else:
+            print("Data gaps detected")
 print("... done!")
 
 # get date and time from stream
@@ -71,6 +87,7 @@ d = time.day
 h = time.hour
 delta = tcor_st[0].stats.delta
 
+# save traces as mseed files
 print("write traces ...")
 t1_trim = UTCDateTime(y, m, d, h, 0)
 if h < 23:
